@@ -12,12 +12,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Update submodules
         run: |
-          git submodule update --init --recursive --remote
+          git submodule init
+          # 获取所有子模块路径
+          sm_paths=$(git config --file .gitmodules --get-regexp path | awk '{print $2}')
+          
+          echo "### Submodule Sync Report" >> $GITHUB_STEP_SUMMARY
+          echo "| Submodule | Status | Action |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          for sm in $sm_paths; do
+            echo "--------------------------------------------------"
+            echo "Checking submodule: $sm"
+            URL=$(git config --file .gitmodules --get "submodule.$sm.url")
+            
+            # 检查远程仓库是否存活
+            if curl --output /dev/null --silent --head --fail -L "$URL"; then
+              echo "Upstream $URL is healthy. Updating to latest commit..."
+              if git submodule update --init --recursive --remote "$sm"; then
+                echo "Successfully updated $sm"
+                echo "| $sm | ✅ OK | Updated to latest |" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "::warning:: Failed to update $sm (check branch/ref). Skipping."
+                echo "| $sm | ⚠️ WARN | Update failed |" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "::error:: Submodule $sm upstream ($URL) is 404 or unreachable!"
+              echo "Skipping $sm to avoid build failure. Manual intervention required (fork or flatten)."
+              echo "| $sm | ❌ 404 | **Action required** |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
           
       - name: Commit and push if changed
         run: |

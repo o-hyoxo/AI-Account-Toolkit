@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.2] - 2026-05-13
+
+### Fixed
+- 将已 404 的子模块 `outlook-auto-register` 转换为常规目录，确保代码库完整性。
+- 优化 GitHub Workflow (`submodule-sync.yml`) 逻辑：
+    - 增加 URL 存活性检查 (curl)。
+    - 采用循环更新机制，避免单个子模块故障导致整个构建失败。
+    - 增加更新状态报告及警告。
+
 ## [2.4.1] - 2026-05-13
 
 ### Fixed

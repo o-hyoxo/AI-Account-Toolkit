@@ -487,4 +487,4 @@ python packages/general/any-auto-register/main.py
 
 ---
 
-**License**: [MIT](LICENSE) | **更新日期**：2026-05-13 | **版本**：2.4.1
+**License**: [MIT](LICENSE) | **更新日期**：2026-05-13 | **版本**：2.4.2

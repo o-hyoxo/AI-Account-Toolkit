@@ -1,18 +1,20 @@
 # AI-Account-Toolkit 更新摘要 (2026-05-13)
 
-## 版本：2.4.0
+## 版本：2.4.2
 
-### 1. 新增子模块
-- **grok2api** (`packages/grok/grok2api`): Grok API 转换服务，支持多账号管理。
-- **gopay-plus-auto** (`packages/general/gopay-plus-auto`): Gopay+ 平台自动化操作工具。
-- **real-random-taxfree-address** (`packages/general/real-random-taxfree-address`): 美国真实随机免税地址生成工具（已完善导航）。
+### 1. 应对上游删库的韧性增强
+- **子模块扁平化**: 已将上游失效且无直接替代方案的 `outlook-auto-register` 子模块转换为常规目录。这确保了即使原仓库被删除，本地已有的代码仍能保存在主仓库中并正常分发。
+- **失效仓库清理**: 移除了 `.git` 引用，将文件正式纳入版本管理。
 
-### 2. 自动化维护
-- **GitHub Workflow**: 新增 `.github/workflows/submodule-sync.yml`，每天自动同步所有子模块状态，确保最新代码拉取及子模块引用的有效性。
+### 2. 自动化维护逻辑优化
+- **GitHub Workflow 增强**: 更新了 `.github/workflows/submodule-sync.yml`，具备以下新特性：
+    - **前置存活性检查**: 在拉取前通过 `curl` 验证上游仓库状态，遇到 404 自动跳过，避免阻塞整个同步流程。
+    - **隔离更新**: 采用循环机制逐个处理子模块，单个模块的同步失败不会影响其他模块。
+    - **可视化报告**: 在 GitHub Action 运行页面自动生成同步报告表格，直观展示每个模块的健康状态（OK / 404 / Failed）。
+    - **自动推回**: 依然保持每天自动拉取最新 commit 并推回主仓库的逻辑。
 
-### 3. 文档更新
-- `README.md`: 同步更新项目结构、导航章节（新增至 41 个项目）及子模块列表（共 22 个子模块）。
-- `CHANGELOG.md`: 记录 2.2.0 及后续版本的变更。
+### 3. 子模块健康检查
+- 已验证当前 `.gitmodules` 中的所有 URL（包括之前修复的 `gemini-balance-do` 等 fork 仓库）均为可用状态（200 OK）。
 
 ---
 *更新由 Accio AI Assistant 完成*
