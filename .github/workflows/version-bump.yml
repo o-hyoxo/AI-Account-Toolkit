@@ -1,0 +1,200 @@
+name: Version Bump & Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type (major/minor/patch)'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get latest version
+        id: get_version
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v2.5.0")
+          echo "Latest tag: $latest_tag"
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+
+          # Extract version numbers
+          version=${latest_tag#v}
+          IFS='.' read -r major minor patch <<< "$version"
+          echo "Current version: $major.$minor.$patch"
+          echo "major=$major" >> $GITHUB_OUTPUT
+          echo "minor=$minor" >> $GITHUB_OUTPUT
+          echo "patch=$patch" >> $GITHUB_OUTPUT
+
+      - name: Determine bump type
+        id: bump_type
+        run: |
+          # Check commit message for bump type hints
+          commit_msg=$(git log -1 --pretty=%B)
+          bump_type="${{ github.event.inputs.version_bump }}"
+
+          if [[ "$commit_msg" == *"feat:"* ]] || [[ "$commit_msg" == *"feat("* ]]; then
+            if [[ "$commit_msg" == *"*"* ]]; then
+              bump_type="major"
+            else
+              bump_type="minor"
+            fi
+          elif [[ "$commit_msg" == *"fix:"* ]] || [[ "$commit_msg" == *"fix("* ]] || [[ "$commit_msg" == *"chore:"* ]]; then
+            bump_type="patch"
+          elif [[ -z "$bump_type" ]] || [[ "$bump_type" == "patch" ]]; then
+            bump_type="patch"
+          fi
+
+          echo "Bump type: $bump_type"
+          echo "bump_type=$bump_type" >> $GITHUB_OUTPUT
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          major=${{ steps.get_version.outputs.major }}
+          minor=${{ steps.get_version.outputs.minor }}
+          patch=${{ steps.get_version.outputs.patch }}
+          bump_type=${{ steps.bump_type.outputs.bump_type }}
+
+          case $bump_type in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          new_version="v${major}.${minor}.${patch}"
+          echo "New version: $new_version"
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+
+      - name: Check if release exists
+        id: check_release
+        run: |
+          new_version=${{ steps.new_version.outputs.new_version }}
+          if git rev-parse "$new_version" >/dev/null 2>&1; then
+            echo "Release $new_version already exists"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "Release $new_version does not exist"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update version in README
+        if: steps.check_release.outputs.should_release == 'true'
+        run: |
+          new_version=${{ steps.new_version.outputs.new_version }}
+          version_number=${new_version#v}
+
+          # Update version badge in README
+          sed -i "s|Version-.*-orange|Version-${version_number}-orange|" README.md
+
+          # Update date in README and LICENSE
+          current_date=$(date +%Y-%m-%d)
+          sed -i "s|Updated:.*-|Updated: ${current_date} -|" README.md
+
+          git add README.md
+
+      - name: Update CHANGELOG
+        if: steps.check_release.outputs.should_release == 'true'
+        run: |
+          new_version=${{ steps.new_version.outputs.new_version }}
+          current_date=$(date +%Y-%m-%d)
+
+          # Get commit messages since last tag
+          latest_tag=${{ steps.get_version.outputs.latest_tag }}
+          commits=$(git log ${latest_tag}..HEAD --pretty=format:"%s")
+
+          # Prepare new changelog entry
+          new_entry="## [${new_version#v}] - ${current_date}\n\n"
+          new_entry+="### ✨ Added\n"
+          echo "$commits" | grep -i "^feat" || true | while read line; do
+            new_entry+="- ${line}\n"
+          done
+          new_entry+="\n### 🔧 Fixed\n"
+          echo "$commits" | grep -i "^fix" || true | while read line; do
+            new_entry+="- ${line}\n"
+          done
+
+          # Insert new entry after the header
+          awk -v entry="$new_entry" '
+            /^---$/ && !header_done {
+              print
+              print ""
+              print entry
+              header_done=1
+              next
+            }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+
+          git add CHANGELOG.md
+
+      - name: Commit version changes
+        if: steps.check_release.outputs.should_release == 'true'
+        run: |
+          new_version=${{ steps.new_version.outputs.new_version }}
+          git commit -m "chore: bump version to ${new_version} [skip ci]" || echo "No changes to commit"
+
+      - name: Create and push tag
+        if: steps.check_release.outputs.should_release == 'true'
+        run: |
+          new_version=${{ steps.new_version.outputs.new_version }}
+          git tag -a "$new_version" -m "Release $new_version"
+          git push origin main --tags
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.new_version.outputs.new_version }}
+          name: ${{ steps.new_version.outputs.new_version }}
+          body: |
+            ## ${{ steps.new_version.outputs.new_version }}
+
+            See [CHANGELOG.md](https://github.com/adminlove520/AI-Account-Toolkit/blob/main/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          new_version=${{ steps.new_version.outputs.new_version }}
+          echo "### Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Previous Version | ${{ steps.get_version.outputs.latest_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| New Version | $new_version |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bump Type | ${{ steps.bump_type.outputs.bump_type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ steps.check_release.outputs.should_release == 'true' && 'Released' || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
