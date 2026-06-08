@@ -77,6 +77,7 @@ AI-Account-Toolkit/
 
 - **[gpt4free](packages/general/gpt4free/README.md)**: **[强烈推荐]** 聚合数十个第三方接口，支持全系列顶尖模型。
 - **[open-proxy-ai](packages/general/open-proxy-ai/README.md)**: 针对 GPT-4o 深度优化的极速逆向代理服务。
+- **[cockpit-tools](packages/general/cockpit-tools/README.md)**: OpenAI Cockpit 管理工具集。
 - **[any-auto-register](packages/general/any-auto-register/README.md)**: 模块化账号注册框架，支持多平台扩展。
 - **[all-in-one-register](packages/general/all-in-one-register/README.md)**: 集成 OpenAI/Grok/Tavily 的综合自动化注册机。
 
@@ -157,7 +158,7 @@ find . -name "requirements.txt" -not -path "*/node_modules/*" -exec pip install 
 
 ---
 
-## 📋 子模块列表 (共 30 个)
+## 📋 子模块列表 (共 31 个)
 
 | 分类 | 路径 | 核心功能 |
 | :--- | :--- | :--- |
